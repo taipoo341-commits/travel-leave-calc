@@ -17,7 +17,6 @@
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <style>
-        /* 1. 宣告本地字體 RemachineScript */
         @font-face {
             font-family: 'RemachineScript';
             src: url('./RemachineScript_Personal_Use.ttf') format('truetype');
@@ -54,14 +53,9 @@
     <div id="root"></div>
 
     <script type="text/babel">
-        /* 新增引入 useEffect 與 useRef */
         const { useState, useMemo, useEffect, useRef } = React;
 
-        const LOCATION_ALIASES = {
-            "烏來": "新北", "通霄": "苗栗", "興達": "高雄", "南火": "高雄",
-            "大林": "高雄", "大潭": "桃園", "核三": "屏東", "明潭": "南投",
-            "大觀": "南投", "協和": "基隆"
-        };
+        /* 已依要求移除 LOCATION_ALIASES */
 
         const COMMON_LOCATIONS = ["林訓", "所本部", "總處"];
 
@@ -111,39 +105,41 @@
             const [backMin, setBackMin] = useState("30");
             const [manualEndShift, setManualEndShift] = useState("");
 
-            /* 綁定日期選擇器的參照 (Ref) */
             const startDateRef = useRef(null);
 
+            // --- 修改點 A：處理異體字相容邏輯 ---
             const currentRule = useMemo(() => {
                 if (!location) return null;
-                let searchString = location;
-                for (const [alias, city] of Object.entries(LOCATION_ALIASES)) {
-                    if (location.includes(alias)) searchString += ` ${city}`;
-                }
-                const match = REGION_MAP.find(r => r.keywords.some(k => searchString.includes(k)));
+                
+                // 將輸入統一轉為「台」，進行正規化搜尋
+                const normalizedInput = location.replace(/臺/g, '台');
+
+                // 在匹配時，關鍵字也統一轉為「台」來比對，確保 100% 命中
+                const match = REGION_MAP.find(r => 
+                    r.keywords.some(k => normalizedInput.includes(k.replace(/臺/g, '台')))
+                );
+
                 if (match) return match;
                 return { label: "非表列區域 (無路程假)", TRA: 0, THSR: 0, PLANE: 0, isZero: true };
             }, [location]);
 
-            /* 彙整所有可觸發跳轉的精確地點清單 */
+            // --- 修改點 B：更新自動跳轉清單 (因別名已移除) ---
             const ALL_VALID_LOCATIONS = useMemo(() => {
                 const keywords = REGION_MAP.flatMap(r => r.keywords);
-                const aliases = Object.keys(LOCATION_ALIASES);
-                /* 移除重複項目 */
-                return Array.from(new Set([...COMMON_LOCATIONS, ...keywords, ...aliases]));
+                return Array.from(new Set([...COMMON_LOCATIONS, ...keywords]));
             }, []);
 
-            /* 監聽地點狀態：若輸入內容完全匹配清單，自動跳轉並展開日期盤 */
             useEffect(() => {
-                if (location && ALL_VALID_LOCATIONS.includes(location)) {
+                // 跳轉判斷同樣使用正規化字串進行比對
+                const normalizedLocation = location.replace(/臺/g, '台');
+                const normalizedList = ALL_VALID_LOCATIONS.map(v => v.replace(/臺/g, '台'));
+
+                if (location && normalizedList.includes(normalizedLocation)) {
                     if (startDateRef.current) {
                         startDateRef.current.focus();
                         try {
-                            /* 使用原生 Web API 展開日期盤 */
                             startDateRef.current.showPicker();
-                        } catch (e) {
-                            /* 忽略不支援 showPicker 的瀏覽器 */
-                        }
+                        } catch (e) {}
                     }
                 }
             }, [location, ALL_VALID_LOCATIONS]);
@@ -244,7 +240,7 @@
                             <input 
                                 type="text" 
                                 className="input-cyber" 
-                                placeholder="例：林訓 / 台中 / 所本部" 
+                                placeholder="例：台南 / 台中 / 林訓" 
                                 value={location} 
                                 list="location-suggestions"
                                 onChange={e => setLocation(e.target.value)}
@@ -271,14 +267,7 @@
                             <div className="space-y-3">
                                 <div>
                                     <label className="text-xs font-bold text-cyan-300 mb-1 block">受訓出發日期</label>
-                                    <input 
-                                        type="date" 
-                                        /* 綁定 Ref 以便自動聚焦並喚出日期盤 */
-                                        ref={startDateRef}
-                                        className="input-cyber border-cyan-600" 
-                                        value={startDate} 
-                                        onChange={e => {setStartDate(e.target.value); setManualStartShift("");}} 
-                                    />
+                                    <input type="date" ref={startDateRef} className="input-cyber border-cyan-600" value={startDate} onChange={e => {setStartDate(e.target.value); setManualStartShift("");}} />
                                 </div>
                                 <div>
                                     <label className="text-xs font-bold text-cyan-300 mb-1 block">去程報到時間 (24H)</label>
@@ -382,18 +371,6 @@
 
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(<App />);
-    </script>
-    
-    <script>
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', function() {
-                navigator.serviceWorker.register('./sw.js').then(function(registration) {
-                    console.log('ServiceWorker PWA Ready!', registration.scope);
-                }).catch(function(err) {
-                    console.log('ServiceWorker 註冊失敗:', err);
-                });
-            });
-        }
     </script>
 </body>
 </html>
