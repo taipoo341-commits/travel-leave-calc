@@ -3,12 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>路程假精算系統</title>
+    <title>興達路程假精算系統</title>
     
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Mina:wght@400;700&display=swap" rel="stylesheet">
-
     <link rel="manifest" href="./manifest.json">
     <meta name="theme-color" content="#0d0f12">
     <link rel="apple-touch-icon" href="./icon.png">
@@ -21,15 +17,14 @@
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <style>
+        /* 1. 宣告本地字體 RemachineScript */
+        @font-face {
+            font-family: 'RemachineScript';
+            src: url('./RemachineScript_Personal_Use.ttf') format('truetype');
+            font-weight: normal;
+            font-style: normal;
+        }
 
-        /* 1. 宣告本地字體 */
-        @font-face 
-        {
-        font-family: 'RemachineScript'; /* 這是你自己取的名稱 */
-        src: url('./RemachineScript_Personal_Use.ttf') format('truetype');
-        font-weight: normal;
-        font-style: normal;
-         }
         body { background-color: #0d0f12; color: #e0e0e0; font-family: 'Segoe UI', sans-serif; -webkit-tap-highlight-color: transparent; }
         .neon-text-cyan { color: #00F0FF; text-shadow: 0 0 10px rgba(0, 240, 255, 0.8); }
         .neon-text-orange { color: #FFA500; text-shadow: 0 0 10px rgba(255, 165, 0, 0.8); }
@@ -53,8 +48,6 @@
         .box-back { border: 1px solid rgba(255, 165, 0, 0.3); background: rgba(255, 165, 0, 0.05); }
         .box-red { border: 2px solid #FF3333; background: rgba(255, 51, 51, 0.1); }
         select option { background: #1a1f26; color: white; }
-
-
     </style>
 </head>
 <body class="p-3 md:p-8">
@@ -68,6 +61,8 @@
             "大林": "高雄", "大潭": "桃園", "核三": "屏東", "明潭": "南投",
             "大觀": "南投", "協和": "基隆"
         };
+
+        const COMMON_LOCATIONS = ["林訓", "所本部", "總處"];
 
         const REGION_MAP = [
             { label: "苗栗(含)以北(含總處)", keywords: ["台北", "新北", "基隆", "桃園", "新竹", "苗栗", "林口", "林訓", "總處", "烏來", "所本部"], TRA: 6, THSR: 3, PLANE: 0 },
@@ -106,13 +101,13 @@
             const [transport, setTransport] = useState("TRA");
             
             const [startDate, setStartDate] = useState("");
-            const [goHour, setGoHour] = useState("00");
+            const [goHour, setGoHour] = useState("08");
             const [goMin, setGoMin] = useState("00");
             const [manualStartShift, setManualStartShift] = useState("");
             
             const [endDate, setEndDate] = useState("");
-            const [backHour, setBackHour] = useState("00");
-            const [backMin, setBackMin] = useState("00");
+            const [backHour, setBackHour] = useState("16");
+            const [backMin, setBackMin] = useState("30");
             const [manualEndShift, setManualEndShift] = useState("");
 
             const currentRule = useMemo(() => {
@@ -145,11 +140,8 @@
 
             const calc = useMemo(() => {
                 if (!startDate || !endDate || !currentRule || !activeStartShiftCode || !activeEndShiftCode) return null;
-                
-                // 1. 攔截無路程假地區
                 if (currentRule.isZero) return { isZero: true };
 
-                // 2. 攔截無提供路程之交通工具
                 const standardHrs = currentRule[transport] || 0;
                 if (standardHrs === 0) return { isZeroTransport: true };
 
@@ -221,8 +213,21 @@
                             </select>
                         </div>
                         <div>
-                            <label className="text-xs md:text-sm font-bold text-gray-300 mb-1 block">2. 出差地點</label>
-                            <input type="text" className="input-cyber" placeholder="例：林訓 / 台中 / 所本部" value={location} onChange={e => setLocation(e.target.value)} />
+                            <label className="text-xs md:text-sm font-bold text-gray-300 mb-1 block">2. 出差地點 (可選可填)</label>
+                            <input 
+                                type="text" 
+                                className="input-cyber" 
+                                placeholder="例：林訓 / 台中 / 所本部" 
+                                value={location} 
+                                list="location-suggestions"
+                                onChange={e => setLocation(e.target.value)}
+                                /* 同時綁定 onClick 與 onFocus，確保無論如何點擊都會清空欄位以展示全部選單 */
+                                onClick={() => setLocation('')}
+                                onFocus={() => setLocation('')}
+                            />
+                            <datalist id="location-suggestions">
+                                {COMMON_LOCATIONS.map(loc => <option key={loc} value={loc} />)}
+                            </datalist>
                         </div>
                         <div>
                             <label className="text-xs md:text-sm font-bold text-gray-300 mb-1 block">3. 交通工具</label>
@@ -298,7 +303,6 @@
                                 <div className="md:absolute top-2 right-4 text-[10px] md:text-xs text-gray-500 font-bold uppercase tracking-wider mb-2 md:mb-0">
                                     區域: {currentRule?.label} | 單程 {calc.standardHrs}H
                                 </div>
-                                
                                 <div className="border-l-4 border-cyan-500 pl-3 md:pl-4">
                                     <div className="text-xs md:text-sm text-cyan-400 font-black mb-1">【去程】路程假</div>
                                     <div className="text-2xl md:text-3xl font-black text-white neon-text-cyan mb-1">{formatResult(calc.goLeaveMins)}</div>
@@ -306,7 +310,6 @@
                                         報到 {goHour}:{goMin} 推 {calc.standardHrs}H = {calc.goDepartStr}<br/>重疊扣除：{calc.goOverlap} 分<br/>基準：{SHIFT_TIME_INFO[activeStartShiftCode].name}
                                     </div>
                                 </div>
-
                                 <div className="border-l-4 border-orange-500 pl-3 md:pl-4">
                                     <div className="text-xs md:text-sm text-orange-400 font-black mb-1">【回程】路程假</div>
                                     <div className="text-2xl md:text-3xl font-black text-white neon-text-orange mb-1">{formatResult(calc.backLeaveMins)}</div>
@@ -314,8 +317,7 @@
                                         搭車 {backHour}:{backMin} 推 {calc.standardHrs}H = {calc.backArrivalStr}<br/>重疊扣除：{calc.backOverlap} 分<br/>基準：{SHIFT_TIME_INFO[activeEndShiftCode].name}
                                     </div>
                                 </div>
-
-                                <div className="col-span-1 md:col-span-2 border-t border-gray-700 pt-3 md:pt-4 mt-2 flex flex-col md:flex-row justify-between md:items-end bg-black p-3 md:p-4 rounded">
+                                <div className="col-span-1 md:col-span-2 border-t border-gray-700 pt-3 md:pt-4 mt-2 flex flex-col md:flex-row justify-between md:items-end bg-black p-3 md:p-4 rounded shadow-inner">
                                     <span className="text-gray-300 text-xs md:text-sm font-bold tracking-widest mb-1 md:mb-0">本次受訓總計獲得路程假</span>
                                     <span className="text-2xl md:text-3xl font-black text-white" style={{textShadow: '0 0 15px rgba(255,255,255,0.5)'}}>{formatResult(calc.totalLeaveMins)}</span>
                                 </div>
@@ -327,26 +329,21 @@
                         )}
                     </div>
                     
-                    {/* 設計者簽名區塊 - 使用本地 TTF 字體 */}
-<div className="mt-10 text-center pb-2">
-    <div className="inline-block relative">
-        <span className="text-gray-600 text-[9px] uppercase tracking-[0.3em] block mb-1">System Designed By</span>
-        <div className="text-xl md:text-2xl font-bold tracking-[0.1em] text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-blue-500 to-purple-600" 
-              style={{ textShadow: "0 0 15px rgba(0, 240, 255, 0.4)" }}>
-            <span>複值</span>
-            {/* 這裡使用你在 @font-face 定義的名稱 */}
-            <span style={{ 
-                fontFamily: "'RemachineScript', sans-serif", 
-                fontSize: "1.5em", /* 這種草寫字體通常偏小，建議調大一點 */
-                verticalAlign: "middle",
-                fontWeight: "normal" /* 此類字體通常不建議再加強粗體 */
-            }}>
-                D-Joe.T
-            </span>
-        </div>
-        <div className="absolute -bottom-1 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-cyan-500 to-transparent opacity-60"></div>
-    </div>
-</div>
+                    {/* 設計者簽名區塊 - 已移除 Mina，僅保留本地 TTF 字體 */}
+                    <div className="mt-10 text-center pb-2">
+                        <div className="inline-block relative">
+                            <span className="text-gray-600 text-[9px] uppercase tracking-[0.3em] block mb-1">
+                                System Designed By
+                            </span>
+                            <div className="text-xl md:text-2xl font-bold tracking-[0.1em] text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-blue-500 to-purple-600" 
+                                  style={{ textShadow: "0 0 15px rgba(0, 240, 255, 0.4)" }}>
+                                <span>複值</span>
+                                {/* 套用 RemachineScript 字型 */}
+                                <span style={{ fontFamily: "'RemachineScript', sans-serif", fontSize: "1.3em", verticalAlign: "middle" }}>D-Joe.T</span>
+                            </div>
+                            <div className="absolute -bottom-1 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-cyan-500 to-transparent opacity-60"></div>
+                        </div>
+                    </div>
 
                 </div>
             );
