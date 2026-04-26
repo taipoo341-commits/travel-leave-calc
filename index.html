@@ -106,6 +106,7 @@
             const [manualEndShift, setManualEndShift] = useState("");
 
             const startDateRef = useRef(null);
+            const goSectionRef = useRef(null); // 新增這行：用來標記去程區塊的位置
 
             // --- 修改點 A：處理異體字相容邏輯 ---
             const currentRule = useMemo(() => {
@@ -130,19 +131,27 @@
             }, []);
 
             useEffect(() => {
-                // 跳轉判斷同樣使用正規化字串進行比對
-                const normalizedLocation = location.replace(/臺/g, '台');
-                const normalizedList = ALL_VALID_LOCATIONS.map(v => v.replace(/臺/g, '台'));
+    const normalizedLocation = location.replace(/臺/g, '台');
+    const normalizedList = ALL_VALID_LOCATIONS.map(v => v.replace(/臺/g, '台'));
 
-                if (location && normalizedList.includes(normalizedLocation)) {
-                    if (startDateRef.current) {
-                        startDateRef.current.focus();
-                        try {
-                            startDateRef.current.showPicker();
-                        } catch (e) {}
-                    }
-                }
-            }, [location, ALL_VALID_LOCATIONS]);
+    if (location && normalizedList.includes(normalizedLocation)) {
+        // 1. 自動滾動到去程區塊
+        if (goSectionRef.current) {
+            goSectionRef.current.scrollIntoView({ 
+                behavior: 'smooth', // 平滑滾動
+                block: 'start'      // 對齊到畫面頂部
+            });
+        }
+
+        // 2. 原有的聚焦並跳出日期選取器
+        if (startDateRef.current) {
+            startDateRef.current.focus();
+            try {
+                startDateRef.current.showPicker();
+            } catch (e) {}
+        }
+    }
+}, [location, ALL_VALID_LOCATIONS]);
 
             const getDetectedShiftInfo = (dateStr) => {
                 if (!dateStr) return null;
@@ -240,7 +249,7 @@
                             <input 
                                 type="text" 
                                 className="input-cyber" 
-                                placeholder="例：台南 / 台中 / 林訓" 
+                                placeholder="例：台中 / 林訓" 
                                 value={location} 
                                 list="location-suggestions"
                                 onChange={e => setLocation(e.target.value)}
@@ -262,12 +271,12 @@
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                        <div className="box-go p-4 md:p-6 rounded-xl">
+                        <div className="box-go p-4 md:p-6 rounded-xl" ref={goSectionRef}>
                             <h2 className="text-lg md:text-xl font-bold neon-text-cyan mb-3 border-b border-cyan-800 pb-2">▶ 去程設定</h2>
                             <div className="space-y-3">
                                 <div>
                                     <label className="text-xs font-bold text-cyan-300 mb-1 block">受訓出發日期</label>
-                                    <input type="date" ref={startDateRef} className="input-cyber border-cyan-600" value={startDate} onChange={e => {setStartDate(e.target.value); setManualStartShift("");}} />
+                                    <input type="date" ref={startDateRef} max="9999-12-31" className="input-cyber border-cyan-600" value={startDate} onChange={e => {setStartDate(e.target.value); setManualStartShift("");}} />
                                 </div>
                                 <div>
                                     <label className="text-xs font-bold text-cyan-300 mb-1 block">去程報到時間 (24H)</label>
@@ -290,7 +299,7 @@
                             <div className="space-y-3">
                                 <div>
                                     <label className="text-xs font-bold text-orange-300 mb-1 block">結訓回程日期</label>
-                                    <input type="date" className="input-cyber border-orange-600" value={endDate} onChange={e => {setEndDate(e.target.value); setManualEndShift("");}} />
+                                    <input type="date" max="9999-12-31" className="input-cyber border-orange-600" value={endDate} onChange={e => {setEndDate(e.target.value); setManualEndShift("");}} />
                                 </div>
                                 <div>
                                     <label className="text-xs font-bold text-orange-300 mb-1 block">回程結束時間 (24H)</label>
