@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>興達路程假精算系統</title>
+    <title>興達電廠路程假精算系統</title>
     
     <link rel="manifest" href="./manifest.json">
     <meta name="theme-color" content="#0d0f12">
@@ -129,42 +129,47 @@
 
     if (location && normalizedList.includes(normalizedLocation)) {
         
-        // 判斷是否為手機版
         const isMobile = window.innerWidth < 768;
 
         if (isMobile) {
-            // --- 手機版邏輯：導航優先 ---
+            // 第一步：0ms - 立即收起鍵盤
             if (document.activeElement instanceof HTMLElement) {
-                document.activeElement.blur(); // 收起鍵盤
+                document.activeElement.blur();
             }
 
-            if (goSectionRef.current) {
-                goSectionRef.current.scrollIntoView({ 
-                    behavior: 'smooth', 
-                    block: 'start' 
-                });
-            }
+            // 第二步：150ms - 等待佈局穩定後開始捲動
+            const scrollTimer = setTimeout(() => {
+                if (goSectionRef.current) {
+                    goSectionRef.current.scrollIntoView({ 
+                        behavior: 'smooth', 
+                        block: 'start' 
+                    });
+                }
+            }, 150); 
 
-            // 手機版才需要等待滾動動畫完成
-            const timer = setTimeout(() => {
+            // 第三步：400ms - 捲動定位中/即將完成時，直接彈出月曆 (改為 400ms)
+            const pickerTimer = setTimeout(() => {
                 if (startDateRef.current) {
                     startDateRef.current.focus();
-                    try { startDateRef.current.showPicker(); } catch (e) {}
+                    try {
+                        startDateRef.current.showPicker();
+                    } catch (e) {
+                        // 若瀏覽器認為間隔太久，則改用 click 觸發
+                        startDateRef.current.click();
+                    }
                 }
-            }, 600); 
+            }, 400); // 縮短延遲，達成「定位即彈出」的體感
 
-            return () => clearTimeout(timer);
+            return () => {
+                clearTimeout(scrollTimer);
+                clearTimeout(pickerTimer);
+            };
 
         } else {
-            // --- 電腦版邏輯：速度優先 ---
-            // 直接跳出選擇器，不滾動、不延遲
+            // 電腦版不變：秒開
             if (startDateRef.current) {
                 startDateRef.current.focus();
-                try {
-                    startDateRef.current.showPicker();
-                } catch (e) {
-                    console.log("電腦版自動開啟失敗，請手動點擊");
-                }
+                try { startDateRef.current.showPicker(); } catch (e) {}
             }
         }
     }
