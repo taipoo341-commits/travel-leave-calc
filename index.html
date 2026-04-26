@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>興達電廠路程假精算系統</title>
+    <title>興達路程假精算系統</title>
     
     <link rel="manifest" href="./manifest.json">
     <meta name="theme-color" content="#0d0f12">
@@ -124,29 +124,51 @@
 
             // 修改點：整合了 scrollIntoView(center) 與 setTimeout
             useEffect(() => {
-                const normalizedLocation = location.replace(/臺/g, '台');
-                const normalizedList = ALL_VALID_LOCATIONS.map(v => v.replace(/臺/g, '台'));
+    const normalizedLocation = location.replace(/臺/g, '台');
+    const normalizedList = ALL_VALID_LOCATIONS.map(v => v.replace(/臺/g, '台'));
 
-                if (location && normalizedList.includes(normalizedLocation)) {
-                    if (goSectionRef.current) {
-                        goSectionRef.current.scrollIntoView({ 
-                            behavior: 'smooth', 
-                            block: 'center' 
-                        });
-                    }
+    if (location && normalizedList.includes(normalizedLocation)) {
+        
+        // 判斷是否為手機版
+        const isMobile = window.innerWidth < 768;
 
-                    const timer = setTimeout(() => {
-                        if (startDateRef.current) {
-                            startDateRef.current.focus();
-                            try {
-                                startDateRef.current.showPicker();
-                            } catch (e) {}
-                        }
-                    }, 400);
+        if (isMobile) {
+            // --- 手機版邏輯：導航優先 ---
+            if (document.activeElement instanceof HTMLElement) {
+                document.activeElement.blur(); // 收起鍵盤
+            }
 
-                    return () => clearTimeout(timer);
+            if (goSectionRef.current) {
+                goSectionRef.current.scrollIntoView({ 
+                    behavior: 'smooth', 
+                    block: 'start' 
+                });
+            }
+
+            // 手機版才需要等待滾動動畫完成
+            const timer = setTimeout(() => {
+                if (startDateRef.current) {
+                    startDateRef.current.focus();
+                    try { startDateRef.current.showPicker(); } catch (e) {}
                 }
-            }, [location, ALL_VALID_LOCATIONS]);
+            }, 600); 
+
+            return () => clearTimeout(timer);
+
+        } else {
+            // --- 電腦版邏輯：速度優先 ---
+            // 直接跳出選擇器，不滾動、不延遲
+            if (startDateRef.current) {
+                startDateRef.current.focus();
+                try {
+                    startDateRef.current.showPicker();
+                } catch (e) {
+                    console.log("電腦版自動開啟失敗，請手動點擊");
+                }
+            }
+        }
+    }
+}, [location, ALL_VALID_LOCATIONS]);
 
             const getDetectedShiftInfo = (dateStr) => {
                 if (!dateStr) return null;
