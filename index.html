@@ -104,7 +104,6 @@
             const [manualEndShift, setManualEndShift] = useState("");
 
             const startDateRef = useRef(null);
-            // 增加 ref 用來標記去程區塊
             const goSectionRef = useRef(null);
 
             const currentRule = useMemo(() => {
@@ -122,61 +121,60 @@
                 return Array.from(new Set([...COMMON_LOCATIONS, ...keywords]));
             }, []);
 
-            // 修改點：整合了 scrollIntoView(center) 與 setTimeout
             useEffect(() => {
-    const normalizedLocation = location.replace(/臺/g, '台');
-    const normalizedList = ALL_VALID_LOCATIONS.map(v => v.replace(/臺/g, '台'));
+                const normalizedLocation = location.replace(/臺/g, '台');
+                const normalizedList = ALL_VALID_LOCATIONS.map(v => v.replace(/臺/g, '台'));
 
-    if (location && normalizedList.includes(normalizedLocation)) {
-        
-        const isMobile = window.innerWidth < 768;
+                if (location && normalizedList.includes(normalizedLocation)) {
+                    
+                    const isMobile = window.innerWidth < 768;
 
-        if (isMobile) {
-            // 第一步：0ms - 立即收起鍵盤
-            if (document.activeElement instanceof HTMLElement) {
-                document.activeElement.blur();
-            }
+                    if (isMobile) {
+                        if (document.activeElement instanceof HTMLElement) {
+                            document.activeElement.blur();
+                        }
 
-            // 第二步：150ms - 等待佈局穩定後開始捲動
-            const scrollTimer = setTimeout(() => {
-                if (goSectionRef.current) {
-                    goSectionRef.current.scrollIntoView({ 
-                        behavior: 'smooth', 
-                        block: 'start' 
-                    });
-                }
-            }, 150); 
+                        const scrollTimer = setTimeout(() => {
+                            if (goSectionRef.current) {
+                                goSectionRef.current.scrollIntoView({ 
+                                    behavior: 'smooth', 
+                                    block: 'start' 
+                                });
+                            }
+                        }, 150); 
 
-            // 第三步：400ms - 捲動定位中/即將完成時，直接彈出月曆 (改為 400ms)
-            const pickerTimer = setTimeout(() => {
-                if (startDateRef.current) {
-                    startDateRef.current.focus();
-                    try {
-                        startDateRef.current.showPicker();
-                    } catch (e) {
-                        // 若瀏覽器認為間隔太久，則改用 click 觸發
-                        startDateRef.current.click();
+                        const pickerTimer = setTimeout(() => {
+                            if (startDateRef.current) {
+                                startDateRef.current.focus();
+                                try {
+                                    startDateRef.current.showPicker();
+                                } catch (e) {
+                                    startDateRef.current.click();
+                                }
+                            }
+                        }, 400); 
+
+                        return () => {
+                            clearTimeout(scrollTimer);
+                            clearTimeout(pickerTimer);
+                        };
+
+                    } else {
+                        if (startDateRef.current) {
+                            startDateRef.current.focus();
+                            try { startDateRef.current.showPicker(); } catch (e) {}
+                        }
                     }
                 }
-            }, 400); // 縮短延遲，達成「定位即彈出」的體感
-
-            return () => {
-                clearTimeout(scrollTimer);
-                clearTimeout(pickerTimer);
-            };
-
-        } else {
-            // 電腦版不變：秒開
-            if (startDateRef.current) {
-                startDateRef.current.focus();
-                try { startDateRef.current.showPicker(); } catch (e) {}
-            }
-        }
-    }
-}, [location, ALL_VALID_LOCATIONS]);
+            }, [location, ALL_VALID_LOCATIONS]);
 
             const getDetectedShiftInfo = (dateStr) => {
                 if (!dateStr) return null;
+                
+                if (shiftType === 'M') {
+                    return { code: 'M', label: "維護部門專用" };
+                }
+
                 const current = new Date(dateStr);
                 const diffDays = Math.round((current - BASE_DATE) / (1000 * 60 * 60 * 24));
                 const index = ((diffDays % 12) + 12 + OFFSETS[shiftType]) % 12;
@@ -186,11 +184,11 @@
             const detectedStartInfo = useMemo(() => getDetectedShiftInfo(startDate), [startDate, shiftType]);
             const detectedEndInfo = useMemo(() => getDetectedShiftInfo(endDate), [endDate, shiftType]);
 
-            const activeStartShiftCode = manualStartShift || (detectedStartInfo?.code === '0' ? '4' : detectedStartInfo?.code);
-            const activeEndShiftCode = manualEndShift || (detectedEndInfo?.code === '0' ? '4' : detectedEndInfo?.code);
+            const activeStartShiftCode = manualStartShift || ((detectedStartInfo?.code === '0' || detectedStartInfo?.code === 'M') ? '4' : detectedStartInfo?.code);
+            const activeEndShiftCode = manualEndShift || ((detectedEndInfo?.code === '0' || detectedEndInfo?.code === 'M') ? '4' : detectedEndInfo?.code);
 
-            const displayStartManual = manualStartShift || (detectedStartInfo?.code === '0' ? '4' : "");
-            const displayEndManual = manualEndShift || (detectedEndInfo?.code === '0' ? '4' : "");
+            const displayStartManual = manualStartShift || ((detectedStartInfo?.code === '0' || detectedStartInfo?.code === 'M') ? '4' : "");
+            const displayEndManual = manualEndShift || ((detectedEndInfo?.code === '0' || detectedEndInfo?.code === 'M') ? '4' : "");
 
             const calc = useMemo(() => {
                 if (!startDate || !endDate || !currentRule || !activeStartShiftCode || !activeEndShiftCode) return null;
@@ -213,7 +211,9 @@
 
                 const goReportDT = new Date(`${startDate}T${goHour.padStart(2, '0')}:${goMin.padStart(2, '0')}`);
                 const goDepartDT = new Date(goReportDT.getTime() - standardHrs * 60 * 60 * 1000);
-                const goOverlap = getOverlapMins(goDepartDT, goReportDT, startShiftDT, startEndDT);
+                
+                const isGoOriginalEmpty = !manualStartShift && detectedStartInfo?.code === '0';
+                const goOverlap = isGoOriginalEmpty ? 0 : getOverlapMins(goDepartDT, goReportDT, startShiftDT, startEndDT);
                 const goLeaveMins = (standardHrs * 60) - goOverlap;
 
                 const endInfo = SHIFT_TIME_INFO[activeEndShiftCode];
@@ -223,14 +223,17 @@
 
                 const backDepartDT = new Date(`${endDate}T${backHour.padStart(2, '0')}:${backMin.padStart(2, '0')}`);
                 const backArrivalDT = new Date(backDepartDT.getTime() + standardHrs * 60 * 60 * 1000);
-                const backOverlap = getOverlapMins(backDepartDT, backArrivalDT, endShiftDT, endEndDT);
+                
+                const isBackOriginalEmpty = !manualEndShift && detectedEndInfo?.code === '0';
+                const backOverlap = isBackOriginalEmpty ? 0 : getOverlapMins(backDepartDT, backArrivalDT, endShiftDT, endEndDT);
                 const backLeaveMins = (standardHrs * 60) - backOverlap;
 
                 return {
                     standardHrs, goDepartStr: goDepartDT.toTimeString().substring(0, 5), backArrivalStr: backArrivalDT.toTimeString().substring(0, 5),
-                    goOverlap, goLeaveMins, backOverlap, backLeaveMins, totalLeaveMins: goLeaveMins + backLeaveMins, isZero: false, isZeroTransport: false
+                    goOverlap, goLeaveMins, backOverlap, backLeaveMins, totalLeaveMins: goLeaveMins + backLeaveMins, isZero: false, isZeroTransport: false,
+                    isGoOriginalEmpty, isBackOriginalEmpty
                 };
-            }, [startDate, endDate, goHour, goMin, backHour, backMin, currentRule, transport, activeStartShiftCode, activeEndShiftCode]);
+            }, [startDate, endDate, goHour, goMin, backHour, backMin, currentRule, transport, activeStartShiftCode, activeEndShiftCode, manualStartShift, manualEndShift, detectedStartInfo, detectedEndInfo]);
 
             const formatResult = (mins) => {
                 if (mins <= 0) return "0分";
@@ -263,7 +266,11 @@
                         <div>
                             <label className="text-xs md:text-sm font-bold text-gray-300 mb-1 block">1. 你的班別</label>
                             <select className="input-cyber" value={shiftType} onChange={e => {setShiftType(e.target.value); setManualStartShift(""); setManualEndShift("");}}>
-                                {['A', 'B', 'C', 'D'].map(t => <option key={t} value={t}>{t} 班</option>)}
+                                <option value="A">A 班</option>
+                                <option value="B">B 班</option>
+                                <option value="C">C 班</option>
+                                <option value="D">D 班</option>
+                                <option value="M">維護部門</option>
                             </select>
                         </div>
                         <div>
@@ -293,13 +300,11 @@
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                        {/* 綁定滾動錨點 ref={goSectionRef} */}
                         <div className="box-go p-4 md:p-6 rounded-xl" ref={goSectionRef}>
                             <h2 className="text-lg md:text-xl font-bold neon-text-cyan mb-3 border-b border-cyan-800 pb-2">▶ 去程設定</h2>
                             <div className="space-y-3">
                                 <div>
                                     <label className="text-xs font-bold text-cyan-300 mb-1 block">受訓出發日期</label>
-                                    {/* 加入 max="9999-12-31" 限制年份長度 */}
                                     <input 
                                         type="date" 
                                         ref={startDateRef} 
@@ -330,7 +335,6 @@
                             <div className="space-y-3">
                                 <div>
                                     <label className="text-xs font-bold text-orange-300 mb-1 block">結訓回程日期</label>
-                                    {/* 加入 max="9999-12-31" 限制年份長度 */}
                                     <input 
                                         type="date" 
                                         max="9999-12-31" 
@@ -376,14 +380,18 @@
                                     <div className="text-xs md:text-sm text-cyan-400 font-black mb-1">【去程】路程假</div>
                                     <div className="text-2xl md:text-3xl font-black text-white neon-text-cyan mb-1">{formatResult(calc.goLeaveMins)}</div>
                                     <div className="text-[9px] md:text-[10px] font-mono text-gray-500">
-                                        報到 {goHour}:{goMin} 前推 {calc.standardHrs}H = {calc.goDepartStr}<br/>重疊扣除：{calc.goOverlap} 分<br/>基準：{SHIFT_TIME_INFO[activeStartShiftCode].name}
+                                        報到 {goHour}:{goMin} 前推 {calc.standardHrs}H = {calc.goDepartStr}<br/>
+                                        重疊扣除：{calc.goOverlap} 分 {calc.isGoOriginalEmpty && <span className="text-emerald-400 font-bold ml-1">(空班免扣)</span>}<br/>
+                                        基準：{calc.isGoOriginalEmpty ? "受訓(空班全日)" : SHIFT_TIME_INFO[activeStartShiftCode].name}
                                     </div>
                                 </div>
                                 <div className="border-l-4 border-orange-500 pl-3 md:pl-4">
                                     <div className="text-xs md:text-sm text-orange-400 font-black mb-1">【回程】路程假</div>
                                     <div className="text-2xl md:text-3xl font-black text-white neon-text-orange mb-1">{formatResult(calc.backLeaveMins)}</div>
                                     <div className="text-[9px] md:text-[10px] font-mono text-gray-500">
-                                        搭車 {backHour}:{backMin} 後推 {calc.standardHrs}H = {calc.backArrivalStr}<br/>重疊扣除：{calc.backOverlap} 分<br/>基準：{SHIFT_TIME_INFO[activeEndShiftCode].name}
+                                        搭車 {backHour}:{backMin} 後推 {calc.standardHrs}H = {calc.backArrivalStr}<br/>
+                                        重疊扣除：{calc.backOverlap} 分 {calc.isBackOriginalEmpty && <span className="text-emerald-400 font-bold ml-1">(空班免扣)</span>}<br/>
+                                        基準：{calc.isBackOriginalEmpty ? "受訓(空班全日)" : SHIFT_TIME_INFO[activeEndShiftCode].name}
                                     </div>
                                 </div>
                                 <div className="col-span-1 md:col-span-2 border-t border-gray-700 pt-3 md:pt-4 mt-2 flex flex-col md:flex-row justify-between md:items-end bg-black p-3 md:p-4 rounded shadow-inner">
